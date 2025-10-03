@@ -1,0 +1,136 @@
+'use client';
+
+import type { User } from '@/lib/types';
+import { useRouter, usePathname } from 'next/navigation';
+import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import api from '@/lib/api'; // Use the new API layer
+
+type AuthContextType = {
+  user: User | null;
+  loginStudent: (studentId: number) => Promise<boolean>;
+  registerStudent: (name: string) => Promise<{ success: boolean; user?: User; error?: string }>;
+  loginTeacher: () => Promise<boolean>;
+  logout: () => void;
+};
+
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const [user, setUser] = useState<User | null>(null);
+  const router = useRouter();
+  const pathname = usePathname();
+  const [loading, setLoading] = useState(true);
+
+  // This effect will run once on mount to check for a stored user
+  useEffect(() => {
+    const storedUser = sessionStorage.getItem('shikshak-user');
+    if (storedUser) {
+      const parsedUser = JSON.parse(storedUser);
+      setUser(parsedUser);
+       if (pathname === '/login') {
+         router.replace('/dashboard');
+       }
+    } else {
+       if (pathname !== '/login') {
+         router.replace('/login');
+       }
+    }
+    setLoading(false);
+  }, [pathname, router]);
+
+  const handleLoginSuccess = (backendUser: any, role: 'student' | 'teacher') => {
+    const user: User = {
+      id: backendUser.id,
+      email: backendUser.email || '',
+      full_name: backendUser.name,
+      role: role,
+    };
+    sessionStorage.setItem('shikshak-user', JSON.stringify(user));
+    setUser(user);
+    router.push('/dashboard');
+  };
+
+  const loginStudent = async (studentId: number) => {
+    try {
+      const res = await api.post(`/login/student?student_id=${studentId}`);
+      handleLoginSuccess(res.data, 'student');
+      return true;
+    } catch (err) {
+      return false;
+    }
+  };
+
+  const registerStudent = async (name: string) => {
+    try {
+      const res = await api.post('/students', null, { params: { name } });
+      handleLoginSuccess(res.data, 'student');
+      return { success: true, user: res.data };
+    } catch (err: any) {
+      let errorMsg = 'Registration failed.';
+      if (err.response && err.response.data && err.response.data.detail) {
+        errorMsg = err.response.data.detail;
+      }
+      return { success: false, error: errorMsg };
+    }
+  };
+
+  const loginTeacher = async () => {
+    try {
+      const res = await api.post('/login/teacher');
+      handleLoginSuccess(res.data, 'teacher');
+      return true;
+    } catch (err) {
+      return false;
+    }
+  };
+
+  const logout = () => {
+    sessionStorage.removeItem('shikshak-user');
+    setUser(null);
+    router.push('/login');
+  };
+
+  if (loading && (pathname !== '/login')) {
+    return (
+        <div className="flex h-screen w-full items-center justify-center bg-background">
+            <div className="flex items-center gap-2 text-muted-foreground">
+                <svg
+                className="mr-2 h-5 w-5 animate-spin text-primary"
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+                >
+                <circle
+                    className="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    strokeWidth="4"
+                ></circle>
+                <path
+                    className="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                ></path>
+                </svg>
+                Loading...
+            </div>
+        </div>
+    );
+  }
+
+  return (
+    <AuthContext.Provider value={{ user, loginStudent, registerStudent, loginTeacher, logout }}>
+      {children}
+    </AuthContext.Provider>
+  );
+}
+
+export function useAuth() {
+  const context = useContext(AuthContext);
+  if (context === undefined) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+  return context;
+}
