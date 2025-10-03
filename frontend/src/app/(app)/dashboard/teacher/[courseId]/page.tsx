@@ -5,15 +5,9 @@ import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Tooltip } from "recha
 import { ChartConfig, ChartContainer, ChartTooltipContent } from "@/components/ui/chart";
 import Link from "next/link";
 import { useAuth } from '@/context/auth-context';
-import { useEffect, useState } from 'react';
-import axios from 'axios';
+import useSWR from 'swr';
+import * as dashboardService from '@/services/dashboardService';
 import { Activity, Users, AlertCircle, PlusCircle, ArrowRight } from "lucide-react";
-
-const chartData = [
-  { topic: "Cellular Respiration", errors: 12 },
-  { topic: "Genetics", errors: 8 },
-  { topic: "Photosynthesis", errors: 5 },
-];
 
 const chartConfig = {
     errors: {
@@ -22,46 +16,20 @@ const chartConfig = {
     },
 } satisfies ChartConfig;
 
-const recentExams = [
-    { id: 1, title: "Midterm Exam", submissions: 2, status: 'Needs Grading' },
-    { id: 2, title: "Quiz 1", submissions: 15, status: 'Graded' },
-]
+const dashboardFetcher = (url: string) => {
+    const courseId = url.split('/')[3];
+    return dashboardService.getTeacherDashboard(courseId);
+};
 
 export default function TeacherDashboard({ params }: { params: { courseId: string } }) {
   const { user } = useAuth();
-  const [course, setCourse] = useState<any>(null);
-  const [dashboard, setDashboard] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!user || user.role !== 'teacher') return;
-    async function fetchData() {
-      setLoading(true);
-      setError(null);
-      try {
-        // Fetch course info (replace with real endpoint if available)
-        // For now, just set courseId
-        setCourse({ id: parseInt(params.courseId), name: `Course #${params.courseId}` });
-
-        // Fetch teacher dashboard data
-        const dashRes = await axios.get(`http://localhost:8000/dashboard/teacher/${params.courseId}`);
-        setDashboard(dashRes.data);
-      } catch (err: any) {
-        setError('Failed to load dashboard data.');
-      } finally {
-        setLoading(false);
-      }
-    }
-    fetchData();
-  }, [user, params.courseId]);
+  const { data: dashboard, error } = useSWR(user ? `/api/dashboard/teacher/${params.courseId}` : null, dashboardFetcher);
 
   if (!user || user.role !== 'teacher') return <div className="text-destructive">Not logged in as a teacher.</div>;
-  if (loading) return <div>Loading...</div>;
-  if (error) return <div className="text-destructive">{error}</div>;
-  if (!course || !dashboard) return <div>No data.</div>;
-
-  // Prepare chart data
+  if (error) return <div className="text-destructive">Failed to load dashboard data.</div>;
+  if (!dashboard) return <div>Loading...</div>;
+  
+  // Prepare chart data from the API response
   const chartData = (dashboard.misunderstood_topics || []).map((t: any) => ({
     topic: t.topic,
     errors: Object.values(t.errors || {}).reduce((a: any, b: any) => a + b, 0)
@@ -71,7 +39,7 @@ export default function TeacherDashboard({ params }: { params: { courseId: strin
     <div className="space-y-8">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-            <h1 className="text-3xl font-bold tracking-tight">Dashboard: {course.name}</h1>
+            <h1 className="text-3xl font-bold tracking-tight">Dashboard: Course #{params.courseId}</h1>
             <p className="text-muted-foreground">Overview of your class performance and activities.</p>
         </div>
         <Button asChild>
@@ -90,7 +58,7 @@ export default function TeacherDashboard({ params }: { params: { courseId: strin
             </CardHeader>
             <CardContent>
                 <div className="text-2xl font-bold">{dashboard.class_average ?? '--'}%</div>
-                <p className="text-xs text-muted-foreground">Class average</p>
+                <p className="text-xs text-muted-foreground">Class average score</p>
             </CardContent>
         </Card>
         <Card>
@@ -99,7 +67,7 @@ export default function TeacherDashboard({ params }: { params: { courseId: strin
                 <Users className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-                <div className="text-2xl font-bold">{dashboard.student_highlights?.length ?? '--'}</div>
+                <div className="text-2xl font-bold">{dashboard.student_highlights?.length ?? '0'}</div>
                 <p className="text-xs text-muted-foreground">in this course</p>
             </CardContent>
         </Card>
@@ -109,7 +77,7 @@ export default function TeacherDashboard({ params }: { params: { courseId: strin
                 <AlertCircle className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-                <div className="text-2xl font-bold">{dashboard.misunderstood_topics?.length ?? '--'}</div>
+                <div className="text-2xl font-bold">{dashboard.pending_reviews ?? '0'}</div>
                 <p className="text-xs text-muted-foreground">subjective answers</p>
             </CardContent>
         </Card>
@@ -137,14 +105,14 @@ export default function TeacherDashboard({ params }: { params: { courseId: strin
         <Card>
           <CardHeader>
             <CardTitle>Student Highlights</CardTitle>
-            <CardDescription>Students with lowest average scores.</CardDescription>
+            <CardDescription>Students with the lowest average scores.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             {dashboard.student_highlights?.map((s: any) => (
               <div key={s.student_id} className="flex items-center justify-between rounded-lg border p-4  hover:bg-muted/50 transition-colors">
                 <div>
                   <p className="font-semibold">{s.name}</p>
-                  <p className="text-sm text-muted-foreground">Avg Score: {s.avg_score}</p>
+                  <p className="text-sm text-muted-foreground">Avg Score: {s.avg_score}%</p>
                 </div>
               </div>
             ))}

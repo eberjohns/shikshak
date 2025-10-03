@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/context/auth-context';
-import axios from 'axios';
 import {
   Card,
   CardContent,
@@ -18,14 +17,16 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
+import * as examService from '@/services/examService';
+import { Exam, Question } from '@/lib/types';
 
 export default function TakeExamPage({ params }: { params: { examId: string } }) {
 
   const router = useRouter();
   const { toast } = useToast();
   const { user } = useAuth();
-  const [exam, setExam] = useState<any>(null);
-  const [questions, setQuestions] = useState<any[]>([]);
+  const [exam, setExam] = useState<Exam | null>(null);
+  const [questions, setQuestions] = useState<Question[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<number, string>>({});
@@ -36,12 +37,10 @@ export default function TakeExamPage({ params }: { params: { examId: string } })
       setLoading(true);
       setError(null);
       try {
-        // Fetch exam info
-        const examRes = await axios.get(`http://localhost:8000/exams/${params.examId}`);
-        setExam(examRes.data);
-        // Fetch questions for this exam
-        const questionsRes = await axios.get(`http://localhost:8000/exams/${params.examId}/questions`);
-        setQuestions(questionsRes.data);
+        const examData = await examService.getExam(params.examId);
+        setExam(examData);
+        const questionsData = await examService.getExamQuestions(params.examId);
+        setQuestions(questionsData);
       } catch (err) {
         setError('Failed to load exam.');
       } finally {
@@ -70,15 +69,11 @@ export default function TakeExamPage({ params }: { params: { examId: string } })
 
   const handleSubmit = async () => {
     try {
-      // Prepare answers for backend
       const answerList = Object.entries(answers).map(([question_id, answer_text]) => ({
         question_id: Number(question_id),
         answer_text,
       }));
-      await axios.post(`http://localhost:8000/exams/${params.examId}/submit`, {
-        student_id: user.id,
-        answers: answerList,
-      });
+      await examService.submitExam(params.examId, user.id, answerList);
       toast({
         title: "Exam Submitted!",
         description: "Your answers have been recorded.",

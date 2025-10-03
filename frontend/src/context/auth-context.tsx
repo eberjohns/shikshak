@@ -3,7 +3,8 @@
 import type { User } from '@/lib/types';
 import { useRouter, usePathname } from 'next/navigation';
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import api from '@/lib/api'; // Use the new API layer
+import * as authService from '@/services/authService';
+import { AxiosError } from 'axios';
 
 type AuthContextType = {
   user: User | null;
@@ -21,7 +22,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const [loading, setLoading] = useState(true);
 
-  // This effect will run once on mount to check for a stored user
   useEffect(() => {
     const storedUser = sessionStorage.getItem('shikshak-user');
     if (storedUser) {
@@ -38,12 +38,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setLoading(false);
   }, [pathname, router]);
 
-  const handleLoginSuccess = (backendUser: any, role: 'student' | 'teacher') => {
+  const handleLoginSuccess = (backendUser: any) => {
     const user: User = {
       id: backendUser.id,
       email: backendUser.email || '',
       full_name: backendUser.name,
-      role: role,
+      role: backendUser.is_teacher ? 'teacher' : 'student',
     };
     sessionStorage.setItem('shikshak-user', JSON.stringify(user));
     setUser(user);
@@ -52,8 +52,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const loginStudent = async (studentId: number) => {
     try {
-      const res = await api.post(`/login/student?student_id=${studentId}`);
-      handleLoginSuccess(res.data, 'student');
+      const backendUser = await authService.loginStudent(studentId);
+      handleLoginSuccess(backendUser);
       return true;
     } catch (err) {
       return false;
@@ -62,12 +62,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const registerStudent = async (name: string) => {
     try {
-      const res = await api.post('/students', null, { params: { name } });
-      handleLoginSuccess(res.data, 'student');
-      return { success: true, user: res.data };
+      const backendUser = await authService.registerStudent(name);
+      handleLoginSuccess(backendUser);
+      return { success: true, user: backendUser };
     } catch (err: any) {
       let errorMsg = 'Registration failed.';
-      if (err.response && err.response.data && err.response.data.detail) {
+      if (err instanceof AxiosError && err.response && err.response.data && err.response.data.detail) {
         errorMsg = err.response.data.detail;
       }
       return { success: false, error: errorMsg };
@@ -76,8 +76,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const loginTeacher = async () => {
     try {
-      const res = await api.post('/login/teacher');
-      handleLoginSuccess(res.data, 'teacher');
+      const backendUser = await authService.loginTeacher();
+      handleLoginSuccess(backendUser);
       return true;
     } catch (err) {
       return false;

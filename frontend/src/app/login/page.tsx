@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -13,33 +13,28 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useAuth } from '@/context/auth-context';
-import axios from 'axios';
 import { BookOpenCheck } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import * as authService from '@/services/authService';
+import { User } from '@/lib/types';
 
 export default function LoginPage() {
 
   const { loginStudent, registerStudent, loginTeacher } = useAuth();
   const { toast } = useToast();
 
-  // Student registration
   const [studentName, setStudentName] = useState('');
   const [registerLoading, setRegisterLoading] = useState(false);
-
-  // Student login
-  const [students, setStudents] = useState<{ id: number; name: string }[]>([]);
+  const [students, setStudents] = useState<User[]>([]);
   const [selectedStudentId, setSelectedStudentId] = useState<number | null>(null);
   const [studentsLoading, setStudentsLoading] = useState(false);
-
-  // Teacher login
   const [teacherLoading, setTeacherLoading] = useState(false);
 
-  // Fetch students for login
   const fetchStudents = async () => {
     setStudentsLoading(true);
     try {
-      const res = await axios.get('http://localhost:8000/students');
-      setStudents(res.data);
+      const studentList = await authService.getStudents();
+      setStudents(studentList);
     } catch (err) {
       toast({ variant: 'destructive', title: 'Error', description: 'Failed to fetch students.' });
     } finally {
@@ -47,7 +42,10 @@ export default function LoginPage() {
     }
   };
 
-  // Register student
+  useEffect(() => {
+    fetchStudents();
+  }, []);
+
   const handleRegister = async () => {
     if (!studentName.trim()) {
       toast({ variant: 'destructive', title: 'Registration Failed', description: 'Please enter your name.' });
@@ -63,7 +61,6 @@ export default function LoginPage() {
     }
   };
 
-  // Student login
   const handleStudentLogin = async () => {
     if (!selectedStudentId) {
       toast({ variant: 'destructive', title: 'Login Failed', description: 'Please select your name.' });
@@ -75,7 +72,6 @@ export default function LoginPage() {
     }
   };
 
-  // Teacher login
   const handleTeacherLogin = async () => {
     setTeacherLoading(true);
     const ok = await loginTeacher();
@@ -98,7 +94,6 @@ export default function LoginPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-8">
-          {/* Student Registration */}
           <div className="space-y-2">
             <Label htmlFor="student-name">Register as Student</Label>
             <div className="flex gap-2">
@@ -118,13 +113,9 @@ export default function LoginPage() {
             </div>
           </div>
 
-          {/* Student Login */}
           <div className="space-y-2">
             <Label>Login as Student</Label>
             <div className="flex gap-2">
-              <Button variant="outline" onClick={fetchStudents} disabled={studentsLoading}>
-                {studentsLoading ? 'Loading...' : 'Show Students'}
-              </Button>
               <select
                 className="border rounded px-2 py-1 text-base"
                 value={selectedStudentId ?? ''}
@@ -134,7 +125,7 @@ export default function LoginPage() {
               >
                 <option value="">Select</option>
                 {students.map(s => (
-                  <option key={s.id} value={s.id}>{s.name}</option>
+                  <option key={s.id} value={s.id}>{s.full_name}</option>
                 ))}
               </select>
               <Button onClick={handleStudentLogin} disabled={studentsLoading || !selectedStudentId}>
@@ -143,7 +134,6 @@ export default function LoginPage() {
             </div>
           </div>
 
-          {/* Teacher Login */}
           <div className="space-y-2">
             <Label>Login as Teacher</Label>
             <Button onClick={handleTeacherLogin} disabled={teacherLoading} className="w-full">

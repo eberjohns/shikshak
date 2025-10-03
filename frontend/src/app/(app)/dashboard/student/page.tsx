@@ -6,14 +6,16 @@ import Link from "next/link";
 import { ArrowRight, Target } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import useSWR from 'swr';
-import api from '@/lib/api';
+import * as dashboardService from '@/services/dashboardService';
+import * as examService from '@/services/examService';
 
-const fetcher = (url: string) => api.get(url).then(res => res.data);
+const fetcher = (url: string) => dashboardService.getStudentDashboard(parseInt(url.split('=')[1]));
+const examsFetcher = (url: string) => examService.getAvailableExams(parseInt(url.split('=')[1]));
 
 export default function StudentDashboard() {
   const { user } = useAuth();
   const { data: focusTopicsData, error: focusTopicsError } = useSWR(user ? `/dashboard/student?student_id=${user.id}` : null, fetcher);
-  const { data: availableExamsData, error: availableExamsError } = useSWR(user ? `/exams/available?student_id=${user.id}` : null, fetcher);
+  const { data: availableExamsData, error: availableExamsError } = useSWR(user ? `/exams/available?student_id=${user.id}` : null, examsFetcher);
 
   if (!user || user.role !== 'student') {
     return <div className="text-destructive">Not logged in as a student.</div>;
@@ -59,7 +61,7 @@ export default function StudentDashboard() {
         : "none"
     }));
 
-  const availableExams = availableExamsData.exams;
+  const availableExams = availableExamsData;
 
   return (
     <div className="space-y-8">
