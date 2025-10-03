@@ -13,6 +13,7 @@ class User(Base):
     __tablename__ = 'users'
     id = Column(Integer, primary_key=True)
     name = Column(String, unique=True, index=True, nullable=False)
+    hashed_password = Column(String, nullable=False)  # Add this line
     is_teacher = Column(Integer, default=0)  # 1 for teacher, 0 for student
     courses = relationship("Course", back_populates="teacher")
     answers = relationship("Answer", back_populates="student")

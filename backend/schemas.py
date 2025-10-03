@@ -5,7 +5,12 @@ class UserBase(BaseModel):
     name: str
 
 class UserCreate(UserBase):
-    pass
+    password: str
+    is_teacher: bool = False
+
+class UserLogin(BaseModel):
+    name: str
+    password: str
 
 class User(UserBase):
     id: int
@@ -82,6 +87,7 @@ class Answer(AnswerBase):
 class Token(BaseModel):
     access_token: str
     token_type: str
+    user: User
 
 class TokenData(BaseModel):
     username: Optional[str] = None
