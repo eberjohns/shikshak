@@ -1,27 +1,42 @@
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, status
 from sqlalchemy.orm import Session
-from ..database import get_db, SessionLocal
-from ..models import Course, User
+from ..database import get_db
+from .. import crud, models, schemas
 from typing import List
-from ..schemas import Course as CourseSchema
 
 router = APIRouter()
 
-# Teacher creates a new course
-@router.post("/courses", response_model=CourseSchema)
-def create_course(course_name: str, teacher_id: int, db: Session = Depends(get_db)):
-    teacher = db.query(User).filter(User.id == teacher_id, User.is_teacher == 1).first()
+@router.post("/courses", response_model=schemas.Course)
+def create_course(course: schemas.CourseCreate, teacher_id: int, db: Session = Depends(get_db)):
+    teacher = db.query(models.User).filter(models.User.id == teacher_id, models.User.is_teacher == 1).first()
     if not teacher:
         raise HTTPException(status_code=404, detail="Teacher not found")
     
-    new_course = Course(name=course_name, teacher_id=teacher_id)
-    db.add(new_course)
+    db_course = models.Course(name=course.name, teacher_id=teacher_id)
+    db.add(db_course)
     db.commit()
-    db.refresh(new_course)
-    return new_course
+    db.refresh(db_course)
+    return db_course
 
-# Teacher gets a list of their courses
-@router.get("/courses", response_model=List[CourseSchema])
+@router.get("/courses", response_model=List[schemas.Course])
 def list_courses(teacher_id: int, db: Session = Depends(get_db)):
-    courses = db.query(Course).filter(Course.teacher_id == teacher_id).all()
+    courses = db.query(models.Course).filter(models.Course.teacher_id == teacher_id).all()
     return courses
+
+@router.get("/courses/{course_id}", response_model=schemas.Course)
+def read_course(course_id: int, db: Session = Depends(get_db)):
+    db_course = crud.get_course(db, course_id=course_id)
+    if db_course is None:
+        raise HTTPException(status_code=404, detail="Course not found")
+    return db_course
+
+@router.delete("/courses/{course_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_course(course_id: int, teacher_id: int, db: Session = Depends(get_db)):
+    db_course = crud.get_course(db, course_id=course_id)
+    if not db_course:
+        raise HTTPException(status_code=404, detail="Course not found")
+    if db_course.teacher_id != teacher_id:
+        raise HTTPException(status_code=403, detail="Not authorized to delete this course")
+    
+    crud.delete_course(db, course_id=course_id)
+    return {"ok": True}

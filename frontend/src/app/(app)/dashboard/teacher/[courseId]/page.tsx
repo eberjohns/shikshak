@@ -1,5 +1,5 @@
 'use client'
-import React from "react"; // Import React
+import React from "react";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Tooltip } from "recharts";
@@ -8,6 +8,7 @@ import Link from "next/link";
 import { useAuth } from '@/context/auth-context';
 import useSWR from 'swr';
 import * as dashboardService from '@/services/dashboardService';
+import * as courseService from '@/services/courseService';
 import { Activity, Users, AlertCircle, PlusCircle } from "lucide-react";
 
 const chartConfig = {
@@ -17,56 +18,48 @@ const chartConfig = {
     },
 } satisfies ChartConfig;
 
-// A simpler, more direct fetcher. It receives the courseId directly.
-const dashboardFetcher = (courseId: string) => {
-    return dashboardService.getTeacherDashboard(courseId);
-};
+const dashboardFetcher = (courseId: string) => dashboardService.getTeacherDashboard(courseId);
+const courseFetcher = (courseId: string) => courseService.getCourse(courseId);
 
 export default function TeacherDashboard({ params }: { params: { courseId: string } }) {
-  // Use React.use() to correctly get params, removing the console warning.
   const resolvedParams = React.use(params);
   const { user } = useAuth();
   
-  // Pass the actual courseId as the key to useSWR.
-  // SWR will then pass this key to the dashboardFetcher.
-  const { data: dashboard, error } = useSWR(
-    user ? resolvedParams.courseId : null, 
-    dashboardFetcher
-  );
+  const { data: dashboard, error: dashboardError } = useSWR(user ? resolvedParams.courseId : null, dashboardFetcher);
+  const { data: course, error: courseError } = useSWR(user ? resolvedParams.courseId : null, courseFetcher);
 
   if (!user || user.role !== 'teacher') return <div className="text-destructive">Not logged in as a teacher.</div>;
-  if (error) return <div className="text-destructive">Failed to load dashboard data.</div>;
-  if (!dashboard) {
+  if (dashboardError || courseError) return <div className="text-destructive">Failed to load dashboard data.</div>;
+  if (!dashboard || !course) {
     return (
-      <div className="flex h-full w-full items-center justify-center">
-        <div className="flex items-center gap-2 text-muted-foreground">
-          <svg
-            className="mr-2 h-5 w-5 animate-spin text-primary"
-            xmlns="http://www.w3.org/2000/svg"
-            fill="none"
-            viewBox="0 0 24 24"
-          >
-            <circle
-              className="opacity-25"
-              cx="12"
-              cy="12"
-              r="10"
-              stroke="currentColor"
-              strokeWidth="4"
-            ></circle>
-            <path
-              className="opacity-75"
-              fill="currentColor"
-              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-            ></path>
-          </svg>
-          Loading...
+        <div className="flex h-full w-full items-center justify-center">
+          <div className="flex items-center gap-2 text-muted-foreground">
+            <svg
+              className="mr-2 h-5 w-5 animate-spin text-primary"
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+            >
+              <circle
+                className="opacity-25"
+                cx="12"
+                cy="12"
+                r="10"
+                stroke="currentColor"
+                strokeWidth="4"
+              ></circle>
+              <path
+                className="opacity-75"
+                fill="currentColor"
+                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+              ></path>
+            </svg>
+            Loading...
+          </div>
         </div>
-      </div>
-    );
+      );
   }
   
-  // Prepare chart data from the API response
   const chartData = (dashboard.misunderstood_topics || []).map((t: any) => ({
     topic: t.topic,
     errors: Object.values(t.errors || {}).reduce((a: any, b: any) => a + b, 0)
@@ -76,7 +69,7 @@ export default function TeacherDashboard({ params }: { params: { courseId: strin
     <div className="space-y-8">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-            <h1 className="text-3xl font-bold tracking-tight">Dashboard: Course #{resolvedParams.courseId}</h1>
+            <h1 className="text-3xl font-bold tracking-tight">Dashboard: {course.name}</h1>
             <p className="text-muted-foreground">Overview of your class performance and activities.</p>
         </div>
         <Button asChild>

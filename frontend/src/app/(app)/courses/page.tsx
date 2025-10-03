@@ -10,8 +10,19 @@ import { useToast } from '@/hooks/use-toast';
 import useSWR, { mutate } from 'swr';
 import * as courseService from '@/services/courseService';
 import { Course } from '@/lib/types';
-import { PlusCircle, BookOpen } from 'lucide-react';
+import { PlusCircle, BookOpen, Trash2 } from 'lucide-react';
 import Link from 'next/link';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
 
 const coursesFetcher = (teacherId: number) => courseService.getCourses(teacherId);
 
@@ -36,6 +47,18 @@ export default function CoursesPage() {
       toast({ variant: 'destructive', title: 'Error', description: 'Failed to create course.' });
     } finally {
       setIsCreating(false);
+    }
+  };
+  
+  const handleDeleteCourse = async (courseId: number, courseName: string) => {
+    if (!user) return;
+
+    try {
+      await courseService.deleteCourse(courseId, user.id);
+      toast({ title: 'Course Deleted', description: `Successfully deleted "${courseName}".` });
+      mutate(user.id); // Re-fetch the courses list
+    } catch (err) {
+      toast({ variant: 'destructive', title: 'Error', description: 'Failed to delete course.' });
     }
   };
   
@@ -88,13 +111,35 @@ export default function CoursesPage() {
               {courses && courses.length > 0 ? (
                 <ul className="space-y-3">
                   {courses.map((course: Course) => (
-                    <li key={course.id}>
-                      <Link href={`/dashboard/teacher/${course.id}`}>
+                    <li key={course.id} className="flex items-center justify-between gap-2">
+                      <Link href={`/dashboard/teacher/${course.id}`} className="w-full">
                         <div className="flex items-center gap-4 rounded-md border p-4 hover:bg-muted/50 transition-colors cursor-pointer">
                           <BookOpen className="h-5 w-5 text-primary" />
                           <span className="font-medium">{course.name}</span>
                         </div>
                       </Link>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button variant="destructive" size="icon">
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              This action cannot be undone. This will permanently delete the course
+                              and all associated exams and student data.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction onClick={() => handleDeleteCourse(course.id, course.name)}>
+                              Delete
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
                     </li>
                   ))}
                 </ul>
