@@ -1,48 +1,69 @@
 'use client';
 
+import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import Link from "next/link";
 import { useAuth } from '@/context/auth-context';
-import { useRouter } from 'next/navigation';
-import { useEffect } from 'react';
+import useSWR from 'swr';
+import * as courseService from '@/services/courseService';
+import { Course } from '@/lib/types';
+import { PlusCircle, ArrowRight } from "lucide-react";
 
-export default function DashboardRedirect() {
+const coursesFetcher = (teacherId: number) => courseService.getCourses(teacherId);
+
+export default function TeacherDashboard() {
   const { user } = useAuth();
-  const router = useRouter();
+  const { data: courses, isLoading } = useSWR(user?.id, coursesFetcher);
 
-  useEffect(() => {
-    if (user) {
-      if (user.role === 'teacher') {
-        router.replace('/dashboard/teacher/1'); // Default to first course for demo
-      } else {
-        router.replace('/dashboard/student');
-      }
-    }
-  }, [user, router]);
+  if (!user || user.role !== 'teacher') {
+    return <div className="text-destructive">Not authorized.</div>;
+  }
+  
+  if (isLoading) {
+      return <div>Loading...</div>
+  }
 
   return (
-    <div className="flex h-full w-full items-center justify-center">
-      <div className="flex items-center gap-2 text-muted-foreground">
-        <svg
-          className="mr-2 h-5 w-5 animate-spin text-primary"
-          xmlns="http://www.w3.org/2000/svg"
-          fill="none"
-          viewBox="0 0 24 24"
-        >
-          <circle
-            className="opacity-25"
-            cx="12"
-            cy="12"
-            r="10"
-            stroke="currentColor"
-            strokeWidth="4"
-          ></circle>
-          <path
-            className="opacity-75"
-            fill="currentColor"
-            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-          ></path>
-        </svg>
-        Redirecting to your dashboard...
+    <div className="space-y-8">
+      <div>
+        <h1 className="text-3xl font-bold tracking-tight">Teacher Dashboard</h1>
+        <p className="text-muted-foreground">Welcome back, {user.full_name}! Select a course to view its dashboard.</p>
       </div>
+
+      {courses && courses.length > 0 ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Your Courses</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {courses.map((course: Course) => (
+              <Link key={course.id} href={`/dashboard/teacher/${course.id}`}>
+                <div className="flex items-center justify-between rounded-lg border p-4 hover:bg-muted/50 transition-colors">
+                  <p className="font-semibold">{course.name}</p>
+                  <Button variant="ghost" size="sm">
+                    View Dashboard <ArrowRight className="ml-2 h-4 w-4" />
+                  </Button>
+                </div>
+              </Link>
+            ))}
+          </CardContent>
+        </Card>
+      ) : (
+        <Card className="text-center">
+            <CardHeader>
+                <CardTitle>No Courses Found</CardTitle>
+                <CardDescription>You haven't created any courses yet. Get started by creating your first one!</CardDescription>
+            </CardHeader>
+            <CardContent>
+                <Button asChild>
+                    <Link href="/courses">
+                        <PlusCircle className="mr-2 h-4 w-4" />
+                        Create Your First Course
+                    </Link>
+                </Button>
+            </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

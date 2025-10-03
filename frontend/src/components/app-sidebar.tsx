@@ -20,7 +20,8 @@ export default function AppSidebar({ user }: { user: User }) {
   const pathname = usePathname();
 
   const teacherNav = [
-    { name: 'Dashboard', href: '/dashboard/teacher/1', icon: LayoutDashboard },
+    { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
+    { name: 'Courses', href: '/courses', icon: Library },
     // More teacher links can be added here
   ];
 
@@ -45,7 +46,7 @@ export default function AppSidebar({ user }: { user: User }) {
             <SidebarMenuItem key={item.name}>
               <Link href={item.href} passHref>
                 <SidebarMenuButton
-                    isActive={pathname === item.href}
+                    isActive={pathname.startsWith(item.href)}
                     tooltip={{children: item.name}}
                 >
                     <item.icon />
